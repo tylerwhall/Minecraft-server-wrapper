@@ -27,15 +27,6 @@ import re
 import datetime
 
 # ---------------------------- COMMANDS -------------------------------------- #
-class KillCommand(object):
-    IDENTIFIER = "KillCommand"
-    def __init__(self, server, user, config):
-        tokens = output.message.split()
-        if len(tokens) >= 2:
-            server.say("%s was killed by %s!" % (tokens[1], output.name))
-        else:
-            server.say("%s killed himself!" % output.name)
-
 class HelpCommand(object):
     IDENTIFIER = "HelpCommand"
     def __init__(self, server, user, config):
@@ -105,9 +96,11 @@ class BackupCommand(object):
 class BackupPlugin(object):
     IDENTIFIER = "BackupPlugin"
     def __init__(self, server, config):
-        self.timer = threading.Timer(config.interval, self.run)
         self.server = server
         self.config = config
+
+    def start(self):
+        self.timer = threading.Timer(self.config.interval, self.run)
         self.timer.start()
 
     def stop(self):
@@ -115,20 +108,22 @@ class BackupPlugin(object):
 
     def run(self):
         self.server.backup()
-        self.timer.start()
+        self.start()
 
 class MessagePlugin(object):
     IDENTIFIER = "MessagePlugin"
     def __init__(self, server, config):
-        self.timer = threading.Timer(config.interval, self.run)
         self.server = server
         self.config = config
+
+    def start(self):
+        self.timer = threading.Timer(self.config.interval, self.run)
         self.timer.start()
 
     def run(self):
         for msg in self.config.messages:
             self.server.say(msg)
-        self.timer.start()
+        self.start()
 
     def stop(self):
         self.timer.cancel()
@@ -158,7 +153,6 @@ COMMAND = ("java", "-Xmx1024M", "-Xms1024M", "-jar", "minecraft_server.jar", "no
 COMMANDS = {
     "help": HelpCommand,
     #"quote": QuoteCommand,
-    "kill": KillCommand,
     "backup": BackupCommand,
     #"restore": RestoreCommand,
 }
@@ -173,7 +167,7 @@ CONFIG = {
     },
     "MessagePlugin": {
         "interval": 3 * 60,
-        "messages": ("Running cMss 0.3.", "Visit http://minecraft.cryzed.de/ for more information.", "Enter !help for a list of available commands.")
+        "messages": ["Running cMss 0.3.", "Visit http://minecraft.cryzed.de/ for more information.", "Enter !help for a list of available commands."]
     },
     "QuoteCommand": {
         "quotes": "quotes.txt"
@@ -194,7 +188,7 @@ def start_plugins(server):
             plugins.append(plugin(server, Config(CONFIG[plugin.IDENTIFIER])))
         else:
             plugins.append(plugin(server, None))
-        #plugins[-1].start()
+        plugins[-1].start()
     return plugins
 
 def stop_plugins(plugins):
