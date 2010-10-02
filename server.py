@@ -102,35 +102,36 @@ class BackupCommand(object):
 
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
-class BackupPlugin(threading.Thread):
+class BackupPlugin(object):
     IDENTIFIER = "BackupPlugin"
     def __init__(self, server, config):
-        threading.Thread.__init__(self)
+        self.timer = threading.Timer(config.interval, self.run)
         self.server = server
         self.config = config
-        self.stop = False
+        self.timer.start()
+
+    def stop(self):
+        self.timer.cancel()
 
     def run(self):
-        while not self.stop:
-            time.sleep(self.config.interval)
-            if self.stop:
-                break
+        self.server.backup()
+        self.timer.start()
 
-class MessagePlugin(threading.Thread):
+class MessagePlugin(object):
     IDENTIFIER = "MessagePlugin"
     def __init__(self, server, config):
-        threading.Thread.__init__(self)
+        self.timer = threading.Timer(config.interval, self.run)
         self.server = server
         self.config = config
-        self.stop = False
+        self.timer.start()
 
     def run(self):
-        while not self.stop:
-            time.sleep(self.config.interval)
-            if self.stop:
-                break
-            for msg in self.config.messages:
-                self.server.say(msg)
+        for msg in self.config.messages:
+            self.server.say(msg)
+        self.timer.start()
+
+    def stop(self):
+        self.timer.cancel()
 
     def event(self, event, **kwargs):
         if event == 'logon':
@@ -193,13 +194,12 @@ def start_plugins(server):
             plugins.append(plugin(server, Config(CONFIG[plugin.IDENTIFIER])))
         else:
             plugins.append(plugin(server, None))
-        plugins[-1].start()
+        #plugins[-1].start()
     return plugins
 
 def stop_plugins(plugins):
     for plugin in plugins:
-        plugin.stop = True
-    time.sleep(3)
+        plugin.stop()
     return []
 
 def run_command(command, user, server):
@@ -216,7 +216,7 @@ class MinecraftServer(object):
     def backup(self):
         self.say('Server is backing up now')
         self.save_all()
-        time.sleep(5) #awful hack
+        time.sleep(5) #awful hack, need to wait for "Save complete"
         backupdir = "backups"
         worldname = 'world' #should get this from config
         backupname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
