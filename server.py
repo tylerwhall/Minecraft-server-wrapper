@@ -23,148 +23,83 @@ import shutil
 import random
 import threading
 import subprocess
+import re
+import datetime
 
-# ----------------------------- CONFIG --------------------------------------- #
 # ---------------------------- COMMANDS -------------------------------------- #
-class RunCommand(object):
-    IDENTIFIER = "RunCommand"
-    def __init__(self, server, output, config):
-        server.say("%s runs away!" % output.name)
-
 class KillCommand(object):
     IDENTIFIER = "KillCommand"
-    def __init__(self, server, output, config):
+    def __init__(self, server, user, config):
         tokens = output.message.split()
         if len(tokens) >= 2:
             server.say("%s was killed by %s!" % (tokens[1], output.name))
         else:
             server.say("%s killed himself!" % output.name)
 
-class HappyCommand(object):
-    IDENTIFIER = "HappyCommand"
-    def __init__(self, server, output, config):
-        tokens = output.message.split()
-        if len(tokens) >= 2:
-            server.say("%s made %s happy!" % (" ".join(tokens[1:]), output.name))
-        else:
-            server.say("%s is happy!" % output.name)
-
-class SadCommand(object):
-    IDENTIFIER = "SadCommand"
-    def __init__(self, server, output, config):
-        tokens = output.message.split()
-        if len(tokens) >= 2:
-            server.say("%s made %s sad!" % (" ".join(tokens[1:]), output.name))
-        else:
-            server.say("%s is sad!" % output.name)
-
 class HelpCommand(object):
     IDENTIFIER = "HelpCommand"
-    def __init__(self, server, output, config):
-        server.say("Available commands:")
+    def __init__(self, server, user, config):
+        server.tell(user, "Available commands:")
         for key in COMMANDS.keys():
-            server.say(key)
+            server.tell(user, key)
 
-class QuoteCommand(object):
-    IDENTIFIER = "QuoteCommand"
-    def __init__(self, server, output, config):
-        tokens = output.message.split()
-        if len(tokens) >= 2:
-            command = tokens[1]
-            if command == "add":
-                if len(tokens) >= 3:
-                    if not os.path.exists(config.quotes):
-                        quotes = open(config.quotes, "w")
-                    existing_quotes = open(config.quotes).read().splitlines()
-                    if " ".join(tokens[2:]) in existing_quotes:
-                        server.say("Quote already exists.")
-                        return
-                    quotes = open(config.quotes, "a")
-                    quotes.write("%s\n" % " ".join(tokens[2:]))
-                else:
-                    server.say("You need to enter a quote.")
-        else:
-            if os.path.exists(config.quotes):
-                quote = random.choice(open(config.quotes).read().splitlines())
-                server.say(quote)
-            else:
-                server.say("No quotes added yet. Add a new quote via \"add\".")
-
-class BanCommand(object):
-    IDENTIFIER = "BanCommand"
-    def __init__(self, server, output, config):
-        if not output.name.lower() in server.operators:
-            server.say("Only operators are allowed to !ban.")
-            return
-        for target in output.message.split()[1:]:
-            if target.lower() in server.operators:
-                server.say("Player %s was not banned. You can't ban operators." % target)
-                continue
-            server.banip(target)
-            server.ban(target)
-
-class KickCommand(object):
-    IDENTIFIER = "KickCommand"
-    def __init__(self, server, output, config):
-        if not output.name.lower() in server.operators:
-            server.say("Only operators are allowed to !kick.")
-            return
-        for target in output.message.split()[1:]:
-            if target.lower() in server.operators:
-                server.say("Player %s was not kicked. You can't kick operators." % target)
-                continue
-            server.kick(target)
+#class QuoteCommand(object):
+#    IDENTIFIER = "QuoteCommand"
+#    def __init__(self, server, output, config):
+#        tokens = output.message.split()
+#        if len(tokens) >= 2:
+#            command = tokens[1]
+#            if command == "add":
+#                if len(tokens) >= 3:
+#                    if not os.path.exists(config.quotes):
+#                        quotes = open(config.quotes, "w")
+#                    existing_quotes = open(config.quotes).read().splitlines()
+#                    if " ".join(tokens[2:]) in existing_quotes:
+#                        server.say("Quote already exists.")
+#                        return
+#                    quotes = open(config.quotes, "a")
+#                    quotes.write("%s\n" % " ".join(tokens[2:]))
+#                else:
+#                    server.say("You need to enter a quote.")
+#        else:
+#            if os.path.exists(config.quotes):
+#                quote = random.choice(open(config.quotes).read().splitlines())
+#                server.say(quote)
+#            else:
+#                server.say("No quotes added yet. Add a new quote via \"add\".")
 
 class BackupCommand(object):
     IDENTIFIER = "BackupCommand"
-    def __init__(self, server, output, config):
-        if not output.name.lower() in server.operators:
-            server.say("Only operators are allowed to !backup.")
+    def __init__(self, server, user, config):
+        if not user in server.operators:
+            server.tell(user, "Only operators are allowed to !backup.")
             return
-        if not os.path.exists(config.directory):
-            os.mkdir(config.directory)
-        backups = os.listdir(config.directory)
-        backups.sort(lambda x, y: int(x) - int(y))
-        path = os.path.join(config.directory, "0")
-        if backups:
-            path = os.path.join(config.directory, str(int(backups[-1])+1))
-        os.mkdir(path)
-        shutil.copy("server_level.dat", path)
-        server.say("Backup %s saved." % str(int(backups[-1])+1))
+        server.backup()
 
-class RestoreCommand(object):
-    IDENTIFIER = "RestoreCommand"
-    def __init__(self, server, output, config):
-        if not output.name.lower() in server.operators:
-            server.say("Only operators are allowed to !restore.")
-            return
-        tokens = output.message.split()
-        if not len(tokens) >= 2:
-            server.say("No valid backup specified.")
-            return
-        if not os.path.exists(config.directory):
-            server.say("No backups made yet.")
-            return
-        backups = os.listdir(config.directory)
-        backups.sort(lambda x, y: int(x) - int(y))
-        if not os.path.exists(os.path.join(config.directory, tokens[1])):
-            server.say("Backup doesn't exist.")
-            return
-        server.shutdown()
-        path = os.path.join(config.directory, tokens[1], "server_level.dat")
-        os.remove("server_level.dat")
-        shutil.copy(path, os.getcwdu())
-        server.start()
+#class RestoreCommand(object):
+#    IDENTIFIER = "RestoreCommand"
+#    def __init__(self, server, user, config):
+#        if not user in server.operators:
+#            server.say("Only operators are allowed to !restore.")
+#            return
+#        tokens = output.message.split()
+#        if not len(tokens) >= 2:
+#            server.say("No valid backup specified.")
+#            return
+#        if not os.path.exists(config.directory):
+#            server.say("No backups made yet.")
+#            return
+#        backups = os.listdir(config.directory)
+#        backups.sort(lambda x, y: int(x) - int(y))
+#        if not os.path.exists(os.path.join(config.directory, tokens[1])):
+#            server.say("Backup doesn't exist.")
+#            return
+#        server.shutdown()
+#        path = os.path.join(config.directory, tokens[1], "server_level.dat")
+#        os.remove("server_level.dat")
+#        shutil.copy(path, os.getcwdu())
+#        server.start()
 
-class EightBallCommand:
-    IDENTIFIER = "EightBallCommand"
-    def __init__(self, server, output, config):
-        if os.path.exists(config.responses):
-            response = random.choice(open(config.responses).read().splitlines())
-            server.say(response)
-        else:
-
-            server.say("%s not found." % config.responses)
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
 class BackupPlugin(threading.Thread):
@@ -180,16 +115,6 @@ class BackupPlugin(threading.Thread):
             time.sleep(self.config.interval)
             if self.stop:
                 break
-            if not os.path.exists(self.config.directory):
-                os.mkdir(self.config.directory)
-            backups = os.listdir(self.config.directory)
-            backups.sort(lambda x, y: int(x) - int(y))
-            path = os.path.join(self.config.directory, "0")
-            if backups:
-                path = os.path.join(self.config.directory, str(int(backups[-1])+1))
-            os.mkdir(path)
-            shutil.copy("server_level.dat", path)
-            self.server.say("Backup %s saved." % str(int(backups[-1])+1))
 
 class MessagePlugin(threading.Thread):
     IDENTIFIER = "MessagePlugin"
@@ -200,58 +125,53 @@ class MessagePlugin(threading.Thread):
         self.stop = False
 
     def run(self):
-        index = 0
         while not self.stop:
             time.sleep(self.config.interval)
             if self.stop:
                 break
-            self.server.say(self.config.messages[index])
-            index += 1
-            if index == len(self.config.messages):
-                index = 0
+            for msg in self.config.messages:
+                self.server.say(msg)
 
-class KickPlugin(threading.Thread):
-    IDENTIFIER = "KickPlugin"
-    def __init__(self, server, config):
-        threading.Thread.__init__(self)
-        self.server = server
-        self.config = config
-        self.stop = False
+    def event(self, event, **kwargs):
+        if event == 'logon':
+            for msg in self.config.messages:
+                self.server.tell(kwargs['user'], msg)
 
-    def run(self):
-        while not self.stop:
-            time.sleep(0.1)
-        for player in self.server.players:
-            print "Kicking %s" % player
-            self.server.kick(player)
+#class KickPlugin(threading.Thread):
+#    IDENTIFIER = "KickPlugin"
+#    def __init__(self, server, config):
+#        threading.Thread.__init__(self)
+#        self.server = server
+#        self.config = config
+#        self.stop = False
+#
+#    def run(self):
+#        while not self.stop:
+#            time.sleep(0.1)
+#        for player in self.server.players:
+#            print "Kicking %s" % player
+#            self.server.kick(player)
 # ---------------------------- PLUGINS --------------------------------------- #
 RESTART_TIME = 3
-COMMAND = ("java", "-cp", "minecraft-server.jar", "com.mojang.minecraft.server.MinecraftServer")
+COMMAND = ("java", "-Xmx1024M", "-Xms1024M", "-jar", "minecraft_server.jar", "nogui")
 COMMANDS = {
-    "!run": RunCommand,
-    "!help": HelpCommand,
-    "!quote": QuoteCommand,
-    "!ban": BanCommand,
-    "!kick": KickCommand,
-    "!kill": KillCommand,
-    "!sad": SadCommand,
-    "!happy": HappyCommand,
-    "!backup": BackupCommand,
-    "!restore": RestoreCommand,
-    "!8ball": EightBallCommand
+    "help": HelpCommand,
+    #"quote": QuoteCommand,
+    "kill": KillCommand,
+    "backup": BackupCommand,
+    #"restore": RestoreCommand,
 }
 PLUGINS = (
     BackupPlugin,
     MessagePlugin,
-    KickPlugin
+#    KickPlugin
 )
 CONFIG = {
     "BackupPlugin": {
         "interval": 30 * 60,
-        "directory": "backups"
     },
     "MessagePlugin": {
-        "interval": 2 * 60,
+        "interval": 3 * 60,
         "messages": ("Running cMss 0.3.", "Visit http://minecraft.cryzed.de/ for more information.", "Enter !help for a list of available commands.")
     },
     "QuoteCommand": {
@@ -263,9 +183,6 @@ CONFIG = {
     "RestoreCommand": {
         "directory": "backups"
     },
-    "EightBallCommand": {
-        "responses": "eightball.txt"
-    }
 }
 # ----------------------------- CONFIG --------------------------------------- #
 
@@ -285,37 +202,74 @@ def stop_plugins(plugins):
     time.sleep(3)
     return []
 
-def run_command(command, server, output):
+def run_command(command, user, server):
     if CONFIG.has_key(COMMANDS[command].IDENTIFIER):
-        COMMANDS[command](server, output, Config(CONFIG[COMMANDS[command].IDENTIFIER]))
+        COMMANDS[command](server, user, Config(CONFIG[COMMANDS[command].IDENTIFIER]))
     else:
-        COMMANDS[command](server, output, None)
+        COMMANDS[command](server, user, None)
 
 class MinecraftServer(object):
     def __init__(self, process):
         self.process = process
         self.plugins = start_plugins(self)
 
-    def op(self, name):
-        self.stdin("/op %s\n" % message)
+    def backup(self):
+        self.say('Server is backing up now')
+        self.save_all()
+        time.sleep(5) #awful hack
+        backupdir = "backups"
+        worldname = 'world' #should get this from config
+        backupname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        if not os.path.exists(backupdir):
+            os.mkdir(backupdir)
+        os.system("tar cjf backups/" + backupname + ".tar.bz2" + " " + worldname + "/*")
+        #shutil.make_archive("backups/" + backupname, 'bztar', root_dir='world') requires python 2.7
+        self.say("Backup %s finished." % backupname)
 
-    def deop(self, name):
-        self.stdin("/deop %s\n" % name)
+    def event(self, event, **kwargs):
+        for p in self.plugins:
+            if hasattr(p, 'event'):
+                p.event(event, **kwargs)
 
+    #Server commands
     def kick(self, name):
-        self.stdin("/kick %s\n" % name)
+        self.stdin("kick %s\n" % name)
 
     def ban(self, name):
-        self.stdin("/ban %s\n" % name)
-
-    def banip(self, name):
-        self.stdin("/banip %s\n" % name)
+        self.stdin("ban %s\n" % name)
 
     def unban(self, name):
-        self.stdin("/unban %s\n" % name)
+        self.stdin("pardon %s\n" % name)
+
+    def banip(self, name):
+        self.stdin("ban-ip %s\n" % name)
+
+    def unbanip(self, name):
+        self.stdin("pardon-ip %s\n" % name)
+
+    def op(self, name):
+        self.stdin("op %s\n" % message)
+
+    def deop(self, name):
+        self.stdin("deop %s\n" % name)
+
+    def tp(self, player1, player2):
+        self.stdin("tp %s %s\n" % message)
 
     def say(self, message):
-        self.stdin("/say %s\n" % message)
+        self.stdin("say %s\n" % message)
+
+    def tell(self, user, message):
+        self.stdin("tell %s %s\n" % (user, message))
+
+    def save_all(self):
+        self.stdin("save-all\n")
+
+    def save_off(self, message):
+        self.stdin("save-off\n")
+
+    def save_on(self, message):
+        self.stdin("save-on\n")
 
     def stdin(self, input):
         self.process.stdin.write(input)
@@ -339,29 +293,39 @@ class MinecraftServer(object):
 
     @property
     def operators(self):
-        with open("admins.txt") as operators:
+        with open("ops.txt") as operators:
             return (o for o in operators.read().splitlines() if o)
 
-    @property
-    def players(self):
-        with open("players.txt") as players:
-            return (p for p in players.read().splitlines() if p)
+    #@property
+    #def players(self):
+    #    with open("players.txt") as players:
+    #        return (p for p in players.read().splitlines() if p)
 
 class Output(object):
-    def __init__(self, output):
-        self.output = output.split()
+    def __new__(self, output):
+      self.output = output.split()
+      match = re.match('(\S+) (\S+) (\S+) (.+)', output)
+      if match:
+        self.groups = match.groups()
+        return object.__new__(self)
+      else:
+        return None
+
+    @property
+    def date(self):
+        return self.groups[0]
 
     @property
     def time(self):
-        return self.output[0]
+        return self.groups[1]
 
     @property
-    def name(self):
-        return self.output[1]
+    def type(self):
+        return self.groups[2]
 
     @property
-    def action(self):
-        return self.output[2][:-1]
+    def content(self):
+        return self.groups[3]
 
     @property
     def message(self):
@@ -380,6 +344,7 @@ def main():
     print "Starting plugins..."
     log.write("Starting plugins...\n")
     log.flush()
+    print "Ops are:", list(server.operators)
     while True:
         try:
             output = server.stderr
@@ -388,11 +353,16 @@ def main():
             print output
             log.write("%s\n" % output)
             log.flush()
-            if "says:" in output or "admins:" in output:
-                output = Output(output)
-                command = output.message.split()[0]
-                if COMMANDS.has_key(command):
-                    run_command(command, server, output)
+            output = Output(output)
+            if output:
+                chat = re.match(r'<(.+)> (.+)', output.message)
+                if chat and chat.group(2)[0] == '!':
+                    user = chat.group(1)
+                    command = chat.group(2)[1:]
+                    run_command(command, user, server)
+                logon = re.match(r'(\S+) \[\S+\] logged in', output.message)
+                if logon:
+                    server.event('logon', user=logon.groups(1)[0])
             elif "Exception" in output.split()[0]:
                 print "Fatal exception occured, restarting server. (%s...)" % output
                 log.write("Fatal exception occured, restarting server. (%s...)\n" % output)
@@ -411,10 +381,10 @@ def main():
             log.flush()
             server.shutdown()
             sys.exit()
-        except(Exception), exception:
-            print "Exception: %s" % exception
-            log.write("Exception: %s\n" % exception)
-            log.flush()
+        #except(Exception), exception:
+        #    print "Exception: %s" % exception
+        #    log.write("Exception: %s\n" % exception)
+        #    log.flush()
 
 if __name__ == "__main__":
     main()
