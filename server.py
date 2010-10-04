@@ -93,8 +93,7 @@ class BackupCommand(object):
 
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
-class BackupPlugin(object):
-    IDENTIFIER = "BackupPlugin"
+class TimedPlugin:
     def __init__(self, server, config):
         self.server = server
         self.config = config
@@ -110,23 +109,18 @@ class BackupPlugin(object):
         self.server.backup()
         self.start()
 
-class MessagePlugin(object):
+class BackupPlugin(TimedPlugin):
+    IDENTIFIER = "BackupPlugin"
+    def run(self):
+        self.server.backup()
+        self.start()
+
+class MessagePlugin(TimedPlugin):
     IDENTIFIER = "MessagePlugin"
-    def __init__(self, server, config):
-        self.server = server
-        self.config = config
-
-    def start(self):
-        self.timer = threading.Timer(self.config.interval, self.run)
-        self.timer.start()
-
     def run(self):
         for msg in self.config.messages:
             self.server.say(msg)
         self.start()
-
-    def stop(self):
-        self.timer.cancel()
 
     def event(self, event, **kwargs):
         if event == 'logon':
@@ -355,19 +349,19 @@ def main():
                     command = chat.group(2)[1:]
                     run_command(command, user, server)
                 logon = re.match(r'(\S+) \[\S+\] logged in', output.message)
-                if logon:
-                    server.event('logon', user=logon.groups(1)[0])
-            elif "Exception" in output.split()[0]:
-                print "Fatal exception occured, restarting server. (%s...)" % output
-                log.write("Fatal exception occured, restarting server. (%s...)\n" % output)
-                print "Stopping plugins..."
-                log.write("Stopping plugins...\n")
-                log.flush()
-                server.shutdown()
-                server.start()
-                print "Starting plugins..."
-                log.write("Starting plugins...\n")
-                log.flush()
+                #if logon:
+                #    server.event('logon', user=logon.groups(1)[0])
+            #elif "Exception" in output.message:
+            #    print "Fatal exception occured, restarting server. (%s...)" % output
+            #    log.write("Fatal exception occured, restarting server. (%s...)\n" % output)
+            #    print "Stopping plugins..."
+            #    log.write("Stopping plugins...\n")
+            #    log.flush()
+            #    server.shutdown()
+            #    server.start()
+            #    print "Starting plugins..."
+            #    log.write("Starting plugins...\n")
+            #    log.flush()
             time.sleep(0.1)
         except(KeyboardInterrupt):
             print "Stopping plugins..."
@@ -375,10 +369,10 @@ def main():
             log.flush()
             server.shutdown()
             sys.exit()
-        #except(Exception), exception:
-        #    print "Exception: %s" % exception
-        #    log.write("Exception: %s\n" % exception)
-        #    log.flush()
+        except(Exception), exception:
+            print "Exception: %s" % exception
+            log.write("Exception: %s\n" % exception)
+            log.flush()
 
 if __name__ == "__main__":
     main()
