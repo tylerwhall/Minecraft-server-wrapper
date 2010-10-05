@@ -106,7 +106,6 @@ class TimedPlugin:
         self.timer.cancel()
 
     def run(self):
-        self.server.backup()
         self.start()
 
 class BackupPlugin(TimedPlugin):
@@ -115,8 +114,8 @@ class BackupPlugin(TimedPlugin):
         self.server.backup()
         self.start()
 
-class MessagePlugin(TimedPlugin):
-    IDENTIFIER = "MessagePlugin"
+class MotdPlugin(TimedPlugin):
+    IDENTIFIER = "MotdPlugin"
     def run(self):
         for msg in self.config.messages:
             self.server.say(msg)
@@ -126,6 +125,25 @@ class MessagePlugin(TimedPlugin):
         if event == 'logon':
             for msg in self.config.messages:
                 self.server.tell(kwargs['user'], msg)
+
+class SnapshotPlugin(TimedPlugin):
+    IDENTIFIER = "SnapshotPlugin"
+    def run(self):
+        import c10
+        worldname = 'world'
+        self.server.save_all()
+        time.sleep(3)
+        limits=(-30,16,-16,40)
+        if not os.path.exists(self.config.directory):
+            os.mkdir(self.config.directory)
+        outname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + '.png'
+        path = os.path.join(self.config.directory, outname)
+        c10.gen_image(worldname, path, limits=limits, oblique=45)
+        path = os.path.join(self.config.directory, 'night' + outname)
+        c10.gen_image(worldname, path, limits=limits, oblique=45, night=True)
+        path = os.path.join(self.config.directory, 'cave' + outname)
+        c10.gen_image(worldname, path, limits=limits, oblique=45, caves=True)
+        self.start()
 
 #class KickPlugin(threading.Thread):
 #    IDENTIFIER = "KickPlugin"
@@ -152,16 +170,21 @@ COMMANDS = {
 }
 PLUGINS = (
     BackupPlugin,
-    MessagePlugin,
+    MotdPlugin,
+    SnapshotPlugin,
 #    KickPlugin
 )
 CONFIG = {
     "BackupPlugin": {
         "interval": 30 * 60,
     },
-    "MessagePlugin": {
+    "MotdPlugin": {
         "interval": 3 * 60,
         "messages": ["Running cMss 0.3.", "Visit http://minecraft.cryzed.de/ for more information.", "Enter !help for a list of available commands."]
+    },
+    "SnapshotPlugin": {
+        "directory": "snapshots",
+        "interval" : 15 * 30,
     },
     "QuoteCommand": {
         "quotes": "quotes.txt"
