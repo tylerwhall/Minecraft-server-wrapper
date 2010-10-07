@@ -1,0 +1,10 @@
+BackupPlugin:
+    interval: 1800
+MotdPlugin:
+    interval: 1800
+    messages:
+        - "harro"
+        - "test"
+SnapshotPlugin:
+    directory: "snapshots"
+    interval: 900

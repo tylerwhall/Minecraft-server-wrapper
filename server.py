@@ -25,11 +25,12 @@ import threading
 import subprocess
 import re
 import datetime
+import yaml
 
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
     IDENTIFIER = "HelpCommand"
-    def __init__(self, server, user, config):
+    def __init__(self, server, user):
         server.tell(user, "Available commands:")
         for key in COMMANDS.keys():
             server.tell(user, key)
@@ -61,45 +62,21 @@ class HelpCommand(object):
 
 class BackupCommand(object):
     IDENTIFIER = "BackupCommand"
-    def __init__(self, server, user, config):
-        if not user in server.operators:
+    def __init__(self, server, user):
+        if not server.is_op(user):
             server.tell(user, "Only operators are allowed to !backup.")
             return
         server.backup()
 
-#class RestoreCommand(object):
-#    IDENTIFIER = "RestoreCommand"
-#    def __init__(self, server, user, config):
-#        if not user in server.operators:
-#            server.say("Only operators are allowed to !restore.")
-#            return
-#        tokens = output.message.split()
-#        if not len(tokens) >= 2:
-#            server.say("No valid backup specified.")
-#            return
-#        if not os.path.exists(config.directory):
-#            server.say("No backups made yet.")
-#            return
-#        backups = os.listdir(config.directory)
-#        backups.sort(lambda x, y: int(x) - int(y))
-#        if not os.path.exists(os.path.join(config.directory, tokens[1])):
-#            server.say("Backup doesn't exist.")
-#            return
-#        server.shutdown()
-#        path = os.path.join(config.directory, tokens[1], "server_level.dat")
-#        os.remove("server_level.dat")
-#        shutil.copy(path, os.getcwdu())
-#        server.start()
-
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
 class TimedPlugin:
-    def __init__(self, server, config):
+    def __init__(self, server):
         self.server = server
-        self.config = config
 
     def start(self):
-        self.timer = threading.Timer(self.config.interval, self.run)
+        config = self.server.get_config(self)
+        self.timer = threading.Timer(config['interval'], self.run)
         self.timer.start()
 
     def stop(self):
@@ -117,31 +94,34 @@ class BackupPlugin(TimedPlugin):
 class MotdPlugin(TimedPlugin):
     IDENTIFIER = "MotdPlugin"
     def run(self):
-        for msg in self.config.messages:
+        config = self.server.get_config(self)
+        for msg in config['messages']:
             self.server.say(msg)
         self.start()
 
     def event(self, event, **kwargs):
-        if event == 'logon':
-            for msg in self.config.messages:
-                self.server.tell(kwargs['user'], msg)
+        pass
+        #if event == 'logon':
+        #    for msg in self.config.messages:
+        #        self.server.tell(kwargs['user'], msg)
 
 class SnapshotPlugin(TimedPlugin):
     IDENTIFIER = "SnapshotPlugin"
     def run(self):
         import c10
+        config = self.server.get_config(self)
         worldname = 'world'
         self.server.save_all()
         time.sleep(3)
         limits=(-30,16,-16,40)
-        if not os.path.exists(self.config.directory):
-            os.mkdir(self.config.directory)
+        if not os.path.exists(config['directory']):
+            os.mkdir(config.directory)
         outname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + '.png'
-        path = os.path.join(self.config.directory, outname)
+        path = os.path.join(config['directory'], outname)
         c10.gen_image(worldname, path, limits=limits, oblique=45)
-        path = os.path.join(self.config.directory, 'night' + outname)
+        path = os.path.join(config['directory'], 'night' + outname)
         c10.gen_image(worldname, path, limits=limits, oblique=45, night=True)
-        path = os.path.join(self.config.directory, 'cave' + outname)
+        path = os.path.join(config['directory'], 'cave' + outname)
         c10.gen_image(worldname, path, limits=limits, oblique=45, caves=True)
         self.start()
 
@@ -174,37 +154,11 @@ PLUGINS = (
     SnapshotPlugin,
 #    KickPlugin
 )
-CONFIG = {
-    "BackupPlugin": {
-        "interval": 30 * 60,
-    },
-    "MotdPlugin": {
-        "interval": 3 * 60,
-        "messages": ["Running cMss 0.3.", "Visit http://minecraft.cryzed.de/ for more information.", "Enter !help for a list of available commands."]
-    },
-    "SnapshotPlugin": {
-        "directory": "snapshots",
-        "interval" : 15 * 30,
-    },
-    "QuoteCommand": {
-        "quotes": "quotes.txt"
-    },
-    "BackupCommand": {
-        "directory": "backups"
-    },
-    "RestoreCommand": {
-        "directory": "backups"
-    },
-}
-# ----------------------------- CONFIG --------------------------------------- #
 
 def start_plugins(server):
     plugins = []
     for plugin in PLUGINS:
-        if CONFIG.has_key(plugin.IDENTIFIER):
-            plugins.append(plugin(server, Config(CONFIG[plugin.IDENTIFIER])))
-        else:
-            plugins.append(plugin(server, None))
+        plugins.append(plugin(server))
         plugins[-1].start()
     return plugins
 
@@ -214,15 +168,30 @@ def stop_plugins(plugins):
     return []
 
 def run_command(command, user, server):
-    if CONFIG.has_key(COMMANDS[command].IDENTIFIER):
-        COMMANDS[command](server, user, Config(CONFIG[COMMANDS[command].IDENTIFIER]))
+    if not command in COMMANDS:
+        server.tell(user, command + ' is not a valid command')
     else:
-        COMMANDS[command](server, user, None)
+        COMMANDS[command](server, user)
+
+class Config(object):
+    def __init__(self):
+        self.reload()
+
+    def reload(self):
+        self.config = yaml.load(open('server.yaml'))
+        for key, value in self.config.items():
+            setattr(self, key, value)
 
 class MinecraftServer(object):
     def __init__(self, process):
         self.process = process
+        self.config = Config()
         self.plugins = start_plugins(self)
+
+    def get_config(self, crass):
+        self.config.reload()
+        if crass.IDENTIFIER in self.config.config.keys():
+            return self.config.config[crass.IDENTIFIER]
 
     def backup(self):
         self.say('Server is backing up now')
@@ -282,17 +251,25 @@ class MinecraftServer(object):
     def save_on(self, message):
         self.stdin("save-on\n")
 
+    def stop(self):
+        self.stdin("stop\n")
+
     def stdin(self, input):
         self.process.stdin.write(input)
 
     def shutdown(self):
         self.plugins = stop_plugins(self.plugins)
+        self.stop()
+        time.sleep(2)
         self.process.terminate()
 
     def start(self):
         time.sleep(RESTART_TIME)
         self.process = subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         self.plugins = start_plugins(self)
+
+    def is_op(self, player):
+        return player.lower() in self.operators
 
     @property
     def stdout(self):
@@ -305,7 +282,7 @@ class MinecraftServer(object):
     @property
     def operators(self):
         with open("ops.txt") as operators:
-            return (o for o in operators.read().splitlines() if o)
+            return (o.lower() for o in operators.read().splitlines() if o)
 
     #@property
     #def players(self):
@@ -341,11 +318,6 @@ class Output(object):
     @property
     def message(self):
         return " ".join(self.output[3:])
-
-class Config(object):
-    def __init__(self, config):
-        for key, value in config.items():
-            setattr(self, key, value)
 
 def main():
     server = MinecraftServer(subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE))
