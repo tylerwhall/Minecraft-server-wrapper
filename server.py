@@ -29,14 +29,12 @@ import yaml
 
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
-    IDENTIFIER = "HelpCommand"
     def __init__(self, server, user):
         server.tell(user, "Available commands:")
         for key in COMMANDS.keys():
             server.tell(user, key)
 
 #class QuoteCommand(object):
-#    IDENTIFIER = "QuoteCommand"
 #    def __init__(self, server, output, config):
 #        tokens = output.message.split()
 #        if len(tokens) >= 2:
@@ -61,7 +59,6 @@ class HelpCommand(object):
 #                server.say("No quotes added yet. Add a new quote via \"add\".")
 
 class BackupCommand(object):
-    IDENTIFIER = "BackupCommand"
     def __init__(self, server, user):
         if not server.is_op(user):
             server.tell(user, "Only operators are allowed to !backup.")
@@ -86,13 +83,11 @@ class TimedPlugin:
         self.start()
 
 class BackupPlugin(TimedPlugin):
-    IDENTIFIER = "BackupPlugin"
     def run(self):
         self.server.backup()
         self.start()
 
 class MotdPlugin(TimedPlugin):
-    IDENTIFIER = "MotdPlugin"
     def run(self):
         config = self.server.get_config(self)
         for msg in config['messages']:
@@ -106,7 +101,6 @@ class MotdPlugin(TimedPlugin):
         #        self.server.tell(kwargs['user'], msg)
 
 class SnapshotPlugin(TimedPlugin):
-    IDENTIFIER = "SnapshotPlugin"
     def run(self):
         import c10
         config = self.server.get_config(self)
@@ -126,7 +120,6 @@ class SnapshotPlugin(TimedPlugin):
         self.start()
 
 #class KickPlugin(threading.Thread):
-#    IDENTIFIER = "KickPlugin"
 #    def __init__(self, server, config):
 #        threading.Thread.__init__(self)
 #        self.server = server
@@ -156,10 +149,14 @@ PLUGINS = (
 )
 
 def start_plugins(server):
+    print "Starting plugins"
     plugins = []
+    config = server.get_config
     for plugin in PLUGINS:
-        plugins.append(plugin(server))
-        plugins[-1].start()
+        if plugin.__name__ in server.config.config['Plugins']:
+            print "Starting", plugin.__name__
+            plugins.append(plugin(server))
+            plugins[-1].start()
     return plugins
 
 def stop_plugins(plugins):
@@ -190,8 +187,8 @@ class MinecraftServer(object):
 
     def get_config(self, crass):
         self.config.reload()
-        if crass.IDENTIFIER in self.config.config.keys():
-            return self.config.config[crass.IDENTIFIER]
+        if crass.__class__.__name__ in self.config.config.keys():
+            return self.config.config[crass.__class__.__name__]
 
     def backup(self):
         self.say('Server is backing up now')
@@ -324,8 +321,6 @@ def main():
     if not os.path.exists("minecraft.log"):
         log = open("minecraft.log", "w")
     log = open("minecraft.log", "a")
-    print "Starting plugins..."
-    log.write("Starting plugins...\n")
     log.flush()
     print "Ops are:", list(server.operators)
     while True:

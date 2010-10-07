@@ -1,3 +1,7 @@
+Plugins:
+    - BackupPlugin
+    - MotdPlugin
+    - SnapshotPlugin
 BackupPlugin:
     interval: 1800
 MotdPlugin:
