@@ -32,8 +32,7 @@ import select
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
     def __init__(self, server, user):
-        if user:
-            server.tell(user, "Available commands:")
+        server.tell(user, "Available commands:")
         for key in COMMANDS.keys():
             if user:
                 server.tell(user, key)
@@ -76,10 +75,7 @@ class ListCommand(object):
 #    	server.tell(user, "Ok. I will try")
         users = server.list()
         users = 'Currently In-Game: ' + users
-        if user:
-            self.tell(user, users)
-        else:
-            print >>sys.stderr, users
+        server.tell(user, users)
 
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
@@ -183,10 +179,7 @@ def stop_plugins(plugins):
 
 def run_command(command, user, server):
     if not command in COMMANDS:
-        if user:
-            server.tell(user, command + ' is not a valid command')
-        else:
-            print >>sys.stderr, command, 'is not a valid command'
+        server.tell(user, command + ' is not a valid command')
     else:
         COMMANDS[command](server, user)
 
@@ -257,7 +250,10 @@ class MinecraftServer(object):
         self.stdin("say %s\n" % message)
 
     def tell(self, user, message):
-        self.stdin("tell %s %s\n" % (user, message))
+        if user:
+            self.stdin("tell %s %s\n" % (user, message))
+        else:
+            print >>sys.stderr, message
 
     def save_all(self):
         self.stdin("save-all\n")
