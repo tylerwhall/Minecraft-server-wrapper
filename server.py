@@ -27,13 +27,18 @@ import re
 import datetime
 import yaml
 import logging
+import select
 
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
     def __init__(self, server, user):
-        server.tell(user, "Available commands:")
+        if user:
+            server.tell(user, "Available commands:")
         for key in COMMANDS.keys():
-            server.tell(user, key)
+            if user:
+                server.tell(user, key)
+            else:
+                print >>sys.stderr, key
 
 #class QuoteCommand(object):
 #    def __init__(self, server, output, config):
@@ -61,7 +66,7 @@ class HelpCommand(object):
 
 class BackupCommand(object):
     def __init__(self, server, user):
-        if not server.is_op(user):
+        if user and not server.is_op(user):
             server.tell(user, "Only operators are allowed to !backup.")
             return
         server.backup()
@@ -69,7 +74,12 @@ class BackupCommand(object):
 class ListCommand(object):
     def __init__(self, server, user):
 #    	server.tell(user, "Ok. I will try")
-        server.list(user)
+        users = server.list()
+        users = 'Currently In-Game: ' + users
+        if user:
+            self.tell(user, users)
+        else:
+            print >>sys.stderr, users
 
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
@@ -173,7 +183,10 @@ def stop_plugins(plugins):
 
 def run_command(command, user, server):
     if not command in COMMANDS:
-        server.tell(user, command + ' is not a valid command')
+        if user:
+            server.tell(user, command + ' is not a valid command')
+        else:
+            print >>sys.stderr, command, 'is not a valid command'
     else:
         COMMANDS[command](server, user)
 
@@ -261,11 +274,10 @@ class MinecraftServer(object):
     def stdin(self, input):
         self.process.stdin.write(input)
 
-    def list(self, user):
-        line = ""
+    def list(self):
         self.process.stdin.write("list \n")
         line = self.process.stderr.readline().strip()
-        self.tell(user, 'Currently In-Game: ' + line[(line.index('players:') + 9):] + '\n')
+        return line[(line.index('players:') + 9):]
 
     def shutdown(self):
         self.plugins = stop_plugins(self.plugins)
@@ -342,27 +354,33 @@ def main():
     serverlogger = logging.getLogger('server')
     while True:
         try:
-            output = server.stderr
-            if not output:
-                continue
-            serverlogger.info(output)
-            output = Output(output)
-            if output:
-                chat = re.match(r'<(.+)> (.+)', output.message)
-                if chat and chat.group(2)[0] == '!':
-                    user = chat.group(1)
-                    command = chat.group(2)[1:]
-                    run_command(command, user, server)
-                logon = re.match(r'(\S+) \[\S+\] logged in', output.message)
-                #if logon:
-                #    server.event('logon', user=logon.groups(1)[0])
-            #elif "Exception" in output.message:
-            #    print "Fatal exception occured, restarting server. (%s...)" % output
-            #    print "Stopping plugins..."
-            #    server.shutdown()
-            #    server.start()
-            #    print "Starting plugins..."
-            time.sleep(0.1)
+            input, output, err = select.select((server.process.stderr, sys.stdin), (), ())
+            if server.process.stderr in input:
+                output = server.stderr
+                serverlogger.info(output)
+                output = Output(output)
+                if output:
+                    chat = re.match(r'<(.+)> (.+)', output.message)
+                    if chat and chat.group(2)[0] == '!':
+                        user = chat.group(1)
+                        command = chat.group(2)[1:]
+                        run_command(command, user, server)
+                    logon = re.match(r'(\S+) \[\S+\] logged in', output.message)
+                    if logon:
+                        logging.info('Got logon: ' + output.message)
+            if sys.stdin in input:
+                cmd = sys.stdin.readline().strip()
+                logging.info(' '.join(('Server command:', cmd)))
+                run_command(cmd, None, server)
+
+                    #if logon:
+                    #    server.event('logon', user=logon.groups(1)[0])
+                #elif "Exception" in output.message:
+                #    print "Fatal exception occured, restarting server. (%s...)" % output
+                #    print "Stopping plugins..."
+                #    server.shutdown()
+                #    server.start()
+                #    print "Starting plugins..."
         except(KeyboardInterrupt):
             logging.info("Stopping plugins...")
             server.shutdown()
