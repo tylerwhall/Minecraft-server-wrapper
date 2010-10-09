@@ -248,10 +248,10 @@ class MinecraftServer(object):
     def save_all(self):
         self.stdin("save-all\n")
 
-    def save_off(self, message):
+    def save_off(self):
         self.stdin("save-off\n")
 
-    def save_on(self, message):
+    def save_on(self):
         self.stdin("save-on\n")
 
     def stop(self):
@@ -335,6 +335,7 @@ def main():
     log = open("minecraft.log", "a")
     log.flush()
     print "Ops are:", list(server.operators)
+    server.save_off()
     while True:
         try:
             output = server.stderr
