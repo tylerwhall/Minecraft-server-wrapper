@@ -64,11 +64,11 @@ class BackupCommand(object):
             server.tell(user, "Only operators are allowed to !backup.")
             return
         server.backup()
-        
+
 class ListCommand(object):
     def __init__(self, server, user):
 #    	server.tell(user, "Ok. I will try")
-    	server.list(user)
+        server.list(user)
 
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
@@ -259,12 +259,12 @@ class MinecraftServer(object):
 
     def stdin(self, input):
         self.process.stdin.write(input)
-        
-    def	list(self, user):
-    	line = ""
-    	self.process.stdin.write("list \n")
-	line = self.process.stderr.readline().strip()
-	self.tell(user, 'Currently In-Game: ' + line[(line.index('players:') + 9):] + '\n')
+
+    def list(self, user):
+        line = ""
+        self.process.stdin.write("list \n")
+        line = self.process.stderr.readline().strip()
+        self.tell(user, 'Currently In-Game: ' + line[(line.index('players:') + 9):] + '\n')
 
     def shutdown(self):
         self.plugins = stop_plugins(self.plugins)
