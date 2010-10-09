@@ -26,6 +26,7 @@ import subprocess
 import re
 import datetime
 import yaml
+import logging
 
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
@@ -155,12 +156,12 @@ PLUGINS = (
 )
 
 def start_plugins(server):
-    print "Starting plugins"
+    logging.info("Starting plugins")
     plugins = []
     config = server.get_config
     for plugin in PLUGINS:
         if plugin.__name__ in server.config.config['Plugins']:
-            print "Starting", plugin.__name__
+            logging.info("Starting " + plugin.__name__)
             plugins.append(plugin(server))
             plugins[-1].start()
     return plugins
@@ -329,21 +330,22 @@ class Output(object):
         return " ".join(self.output[3:])
 
 def main():
+    logging.basicConfig(filename='wrapper.log', level=logging.DEBUG)
+    logging.getLogger().addHandler(logging.StreamHandler())
     server = MinecraftServer(subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE))
-    if not os.path.exists("minecraft.log"):
-        log = open("minecraft.log", "w")
-    log = open("minecraft.log", "a")
-    log.flush()
-    print "Ops are:", list(server.operators)
+    logging.info("Ops are: " + str(list(server.operators)))
     server.save_off()
+    files = [f for f in os.listdir(os.getcwd()) if f.startswith('server.log')]
+    for f in files:
+        logging.info('Deleting log file: ' + f)
+        os.unlink(f)
+    serverlogger = logging.getLogger('server')
     while True:
         try:
             output = server.stderr
             if not output:
                 continue
-            print output
-            log.write("%s\n" % output)
-            log.flush()
+            serverlogger.info(output)
             output = Output(output)
             if output:
                 chat = re.match(r'<(.+)> (.+)', output.message)
@@ -356,26 +358,17 @@ def main():
                 #    server.event('logon', user=logon.groups(1)[0])
             #elif "Exception" in output.message:
             #    print "Fatal exception occured, restarting server. (%s...)" % output
-            #    log.write("Fatal exception occured, restarting server. (%s...)\n" % output)
             #    print "Stopping plugins..."
-            #    log.write("Stopping plugins...\n")
-            #    log.flush()
             #    server.shutdown()
             #    server.start()
             #    print "Starting plugins..."
-            #    log.write("Starting plugins...\n")
-            #    log.flush()
             time.sleep(0.1)
         except(KeyboardInterrupt):
-            print "Stopping plugins..."
-            log.write("Stopping plugins...\n")
-            log.flush()
+            logging.info("Stopping plugins...")
             server.shutdown()
             sys.exit()
         except(Exception), exception:
-            print "Exception: %s" % exception
-            log.write("Exception: %s\n" % exception)
-            log.flush()
+            logging.info("Exception: %s" % exception)
 
 if __name__ == "__main__":
     main()
