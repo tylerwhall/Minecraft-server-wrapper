@@ -197,6 +197,7 @@ class MinecraftServer(object):
         self.process = process
         self.config = Config()
         self.plugins = start_plugins(self)
+        self.backuplock = threading.Lock()
 
     def get_config(self, crass):
         self.config.reload()
@@ -204,17 +205,30 @@ class MinecraftServer(object):
             return self.config.config[crass.__class__.__name__]
 
     def backup(self):
-        self.say('Server is backing up now')
-        self.save_all()
-        time.sleep(5) #awful hack, need to wait for "Save complete"
-        backupdir = "backups"
-        worldname = 'world' #should get this from config
-        backupname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        if not os.path.exists(backupdir):
-            os.mkdir(backupdir)
-        os.system("tar cjf backups/" + backupname + ".tar.bz2" + " " + worldname + "/*")
-        #shutil.make_archive("backups/" + backupname, 'bztar', root_dir='world') requires python 2.7
-        self.say("Backup %s finished." % backupname)
+        class BackupThread(threading.Thread):
+            def __init__(self, server):
+                threading.Thread.__init__(self)
+                self.server = server
+
+            def run(self):
+                self.server.say('Server is backing up now')
+                self.server.save_all()
+                time.sleep(5) #awful hack, need to wait for "Save complete"
+                backupdir = "backups"
+                worldname = 'world' #should get this from config
+                backupname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+                if not os.path.exists(backupdir):
+                    os.mkdir(backupdir)
+                os.system("tar cjf backups/" + backupname + ".tar.bz2" + " " + worldname + "/*")
+                #shutil.make_archive("backups/" + backupname, 'bztar', root_dir='world') requires python 2.7
+                self.server.say("Backup %s finished." % backupname)
+                self.server.backuplock.release()
+
+        if not self.backuplock.acquire(0):
+            self.say('Backup already in progress')
+            return
+        b = BackupThread(self)
+        b.start()
 
     def event(self, event, **kwargs):
         for p in self.plugins:
