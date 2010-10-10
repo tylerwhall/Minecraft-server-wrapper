@@ -410,7 +410,6 @@ def main():
     logging.getLogger().addHandler(logging.StreamHandler())
     server = MinecraftServer(subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE))
     logging.info("Ops are: " + str(list(server.operators)))
-    server.save_off()
     files = [f for f in os.listdir(os.getcwd()) if f.startswith('server.log')]
     for f in files:
         logging.info('Deleting log file: ' + f)
