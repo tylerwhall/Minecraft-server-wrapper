@@ -2,6 +2,7 @@ Plugins:
     - BackupPlugin
     - MotdPlugin
     - SnapshotPlugin
+    - OverviewerPlugin
 BackupPlugin:
     interval: 1800
 MotdPlugin:
@@ -12,3 +13,7 @@ MotdPlugin:
 SnapshotPlugin:
     directory: "snapshots"
     interval: 900
+OverviewerPlugin:
+    interval: 30
+    destdir: gmaps
+    cachedir: gcache

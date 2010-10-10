@@ -116,7 +116,7 @@ class SnapshotPlugin(TimedPlugin):
     def run(self):
         import c10
         config = self.server.get_config(self)
-        worldname = 'world'
+        worldname = self.server.properties['level-name']
         self.server.save_all()
         time.sleep(3)
         limits=(-30,16,-16,40)
@@ -130,6 +130,48 @@ class SnapshotPlugin(TimedPlugin):
         path = os.path.join(config['directory'], 'cave' + outname)
         c10.gen_image(worldname, path, limits=limits, oblique=45, caves=True)
         self.start()
+
+class OverviewerPlugin(TimedPlugin):
+    def __init__(self, *args, **kwargs):
+        TimedPlugin.__init__(self, *args, **kwargs)
+        sys.path.insert(0, os.path.join(os.getcwd(), 'Minecraft-Overviewer'))
+        import gmap
+        self.gmap = gmap
+        self.lock = threading.Lock()
+        class OverviewerCommand(object):
+            plugin = self
+            def __init__(self, server, user):
+                self.plugin.generate()
+        COMMANDS['overview'] = OverviewerCommand
+
+    def run(self):
+        self.generate()
+        self.start()
+
+    def generate(self):
+        class GenThread(threading.Thread):
+            gmap = self.gmap
+            plugin = self
+            def __init__(self, server, lock):
+                threading.Thread.__init__(self)
+                self.server = server
+                self.lock = lock
+
+            def run(self):
+                self.server.say('Started generating map overview')
+                config = self.server.get_config(self.plugin)
+                self.server.save_all()
+                self.gmap.generate(self.server.properties['level-name'], config['destdir'], cachedir=config['cachedir'])
+                time.sleep(5) #awful hack, need to wait for "Save complete"
+                self.server.say("Map overview complete")
+                self.lock.release()
+
+        if not self.lock.acquire(0):
+            self.server.say('Map overview already in progress')
+            return
+        t = GenThread(self.server, self.lock)
+        t.start()
+
 
 #class KickPlugin(threading.Thread):
 #    def __init__(self, server, config):
@@ -158,6 +200,7 @@ PLUGINS = (
     BackupPlugin,
     MotdPlugin,
     SnapshotPlugin,
+    OverviewerPlugin,
 #    KickPlugin
 )
 
@@ -215,11 +258,11 @@ class MinecraftServer(object):
                 self.server.save_all()
                 time.sleep(5) #awful hack, need to wait for "Save complete"
                 backupdir = "backups"
-                worldname = 'world' #should get this from config
+                worldname = self.server.properties['level-name']
                 backupname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 if not os.path.exists(backupdir):
                     os.mkdir(backupdir)
-                os.system("tar cjf backups/" + backupname + ".tar.bz2" + " " + worldname + "/*")
+                os.system("tar cf backups/" + backupname + ".tar.lzma" + " " + worldname + "/* --lzma")
                 #shutil.make_archive("backups/" + backupname, 'bztar', root_dir='world') requires python 2.7
                 self.server.say("Backup %s finished." % backupname)
                 self.server.backuplock.release()
@@ -291,6 +334,7 @@ class MinecraftServer(object):
 
     def shutdown(self):
         self.plugins = stop_plugins(self.plugins)
+        self.save_all()
         self.stop()
         time.sleep(2)
         self.process.terminate()
@@ -315,6 +359,16 @@ class MinecraftServer(object):
     def operators(self):
         with open("ops.txt") as operators:
             return (o.lower() for o in operators.read().splitlines() if o)
+
+    @property
+    def properties(self):
+        p = {}
+        with open('server.properties') as f:
+            for line in f.readlines():
+                m = re.match('([^=]+)=(.+)', line)
+                if m:
+                    p[m.group(1)] = m.group(2)
+        return p
 
     #@property
     #def players(self):
