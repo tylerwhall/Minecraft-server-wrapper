@@ -222,7 +222,11 @@ def stop_plugins(plugins):
 
 def run_command(command, user, server):
     if not command in COMMANDS:
-        server.tell(user, command + ' is not a valid command')
+    	if user is None and command[0] == '/':
+    	     server.stdin("%s\n" % command[1:])
+
+        else:
+             server.tell(user, command + ' is not a valid command')
     else:
         COMMANDS[command](server, user)
 
