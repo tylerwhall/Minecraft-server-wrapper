@@ -1,0 +1,29 @@
+Welcome to <tyler-make-up-a-name-for-your-script>
+the Minecraft server management wrapper
+
+Source Code: http://github.com/tylerwhall/Minecraft-server-wrapper
+
+This script is an evolution of cryzed's Minecraft server script found here:
+http://www.minecraftforum.net/viewtopic.php?t=897
+
+
+Improvements from cryzed's script:
+
+-Works with the Alpha server
+-Includes control functions for image snapshots via c10t
+-Utilizes an external configuration file with yaml
+-Has improved logging functionality
+-Allows commands originating from stdin/console
+-Integrates with gmap to generate a Google Maps style webpage for map exploration
+-All in-game users can run the list command
+-Console can run standard server commands as well
+
+
+
+***********************************************************************
+*
+*	Configuration
+*
+***********************************************************************
+
+
