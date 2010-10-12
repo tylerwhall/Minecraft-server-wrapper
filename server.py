@@ -28,6 +28,10 @@ import datetime
 import yaml
 import logging
 import select
+import gobject
+#from twisted.internet import glib2reactor
+#glib2reactor.install()
+#from twisted.internet import protocol, reactor
 
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
@@ -85,14 +89,13 @@ class TimedPlugin:
 
     def start(self):
         config = self.server.get_config(self)
-        self.timer = threading.Timer(config['interval'], self.run)
-        self.timer.start()
+        self.source = gobject.timeout_add_seconds(config['interval'], self.run)
 
     def stop(self):
-        self.timer.cancel()
+        gobject.source_remove(self.source)
 
     def run(self):
-        self.start()
+        return True
 
 class BackupPlugin(TimedPlugin):
     def run(self):
@@ -104,7 +107,7 @@ class MotdPlugin(TimedPlugin):
         config = self.server.get_config(self)
         for msg in config['messages']:
             self.server.say(msg)
-        self.start()
+        return True
 
     def event(self, event, **kwargs):
         pass
@@ -129,7 +132,7 @@ class SnapshotPlugin(TimedPlugin):
         c10.gen_image(worldname, path, limits=limits, oblique=45, night=True)
         path = os.path.join(config['directory'], 'cave' + outname)
         c10.gen_image(worldname, path, limits=limits, oblique=45, caves=True)
-        self.start()
+        return True
 
 class OverviewerPlugin(TimedPlugin):
     def __init__(self, *args, **kwargs):
@@ -146,7 +149,7 @@ class OverviewerPlugin(TimedPlugin):
 
     def run(self):
         self.generate()
-        self.start()
+        return True
 
     def generate(self):
         class GenThread(threading.Thread):
@@ -409,7 +412,39 @@ class Output(object):
     def message(self):
         return " ".join(self.output[3:])
 
-def main():
+def log_exception(exception):
+    logging.info("Exception: %s" % exception)
+
+def read_stdin(fd, description, server):
+    try:
+        cmd = fd.readline().strip()
+        logging.info(' '.join(('Server command:', cmd)))
+        run_command(cmd, None, server)
+    except(Exception), exception:
+        log_exception(exception)
+    return True
+
+def read_server(fd, description, server):
+    try:
+        serverlogger = logging.getLogger('server')
+        output = server.stderr
+        serverlogger.info(output)
+        output = Output(output)
+        if output:
+            chat = re.match(r'<(.+)> (.+)', output.message)
+            if chat and chat.group(2)[0] == '!':
+                user = chat.group(1)
+                command = chat.group(2)[1:]
+                run_command(command, user, server)
+            logon = re.match(r'(\S+) \[\S+\] logged in', output.message)
+            if logon:
+                logging.info('Got logon: ' + output.message)
+            #    server.event('logon', user=logon.groups(1)[0])
+    except(Exception), exception:
+        log_exception(exception)
+    return True
+
+def basic_startup():
     logging.basicConfig(filename='wrapper.log', level=logging.DEBUG)
     logging.getLogger().addHandler(logging.StreamHandler())
     server = MinecraftServer(subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE))
@@ -418,42 +453,27 @@ def main():
     for f in files:
         logging.info('Deleting log file: ' + f)
         os.unlink(f)
-    serverlogger = logging.getLogger('server')
+    return server
+
+def main():
+    gobject.threads_init()
+    server = basic_startup()
+    gobject.io_add_watch(server.process.stderr, gobject.IO_IN, read_server, server)
+    gobject.io_add_watch(sys.stdin, gobject.IO_IN, read_stdin, server)
     while True:
         try:
-            input, output, err = select.select((server.process.stderr, sys.stdin), (), ())
-            if server.process.stderr in input:
-                output = server.stderr
-                serverlogger.info(output)
-                output = Output(output)
-                if output:
-                    chat = re.match(r'<(.+)> (.+)', output.message)
-                    if chat and chat.group(2)[0] == '!':
-                        user = chat.group(1)
-                        command = chat.group(2)[1:]
-                        run_command(command, user, server)
-                    logon = re.match(r'(\S+) \[\S+\] logged in', output.message)
-                    if logon:
-                        logging.info('Got logon: ' + output.message)
-            if sys.stdin in input:
-                cmd = sys.stdin.readline().strip()
-                logging.info(' '.join(('Server command:', cmd)))
-                run_command(cmd, None, server)
-
-                    #if logon:
-                    #    server.event('logon', user=logon.groups(1)[0])
-                #elif "Exception" in output.message:
-                #    print "Fatal exception occured, restarting server. (%s...)" % output
-                #    print "Stopping plugins..."
-                #    server.shutdown()
-                #    server.start()
-                #    print "Starting plugins..."
+            gobject.MainLoop().run()
         except(KeyboardInterrupt):
             logging.info("Stopping plugins...")
             server.shutdown()
             sys.exit()
-        except(Exception), exception:
-            logging.info("Exception: %s" % exception)
+
+    #elif "Exception" in output.message:
+    #    print "Fatal exception occured, restarting server. (%s...)" % output
+    #    print "Stopping plugins..."
+    #    server.shutdown()
+    #    server.start()
+    #    print "Starting plugins..."
 
 if __name__ == "__main__":
     main()
