@@ -14,6 +14,6 @@ SnapshotPlugin:
     directory: "snapshots"
     interval: 900
 OverviewerPlugin:
-    interval: 30
+    interval: 3600
     destdir: gmaps
     cachedir: gcache
