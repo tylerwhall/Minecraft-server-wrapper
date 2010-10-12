@@ -269,7 +269,7 @@ class MinecraftServer(object):
                 backupname = worldname + '-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 if not os.path.exists(backupdir):
                     os.mkdir(backupdir)
-                os.system("tar cf backups/" + backupname + ".tar.lzma" + " " + worldname + "/* --lzma")
+                os.system("tar cjf backups/" + backupname + ".tar.bz2" + " " + worldname + "/*")
                 #shutil.make_archive("backups/" + backupname, 'bztar', root_dir='world') requires python 2.7
                 self.server.say("Backup %s finished." % backupname)
                 self.server.backuplock.release()
