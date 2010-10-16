@@ -29,9 +29,6 @@ import yaml
 import logging
 import select
 import gobject
-#from twisted.internet import glib2reactor
-#glib2reactor.install()
-#from twisted.internet import protocol, reactor
 
 # ---------------------------- COMMANDS -------------------------------------- #
 class HelpCommand(object):
@@ -78,11 +75,31 @@ class ListCommand(object):
     def __init__(self, server, user):
 #    	server.tell(user, "Ok. I will try")
         users = server.list()
-        users = 'Currently In-Game: ' + users
+        users = 'Currently In-Game: ' + ' '.join(users)
         server.tell(user, users)
 
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
+class RPCPlugin:
+    def __init__(self, mcserver):
+        from twisted.internet import glib2reactor
+        glib2reactor.install()
+        from twisted.internet import reactor
+        from twisted.web import xmlrpc, server
+        class Test(xmlrpc.XMLRPC):
+            server = mcserver
+            def xmlrpc_list(self):
+                return self.server.list()
+        t = Test()
+        config = mcserver.get_config(self)
+        reactor.listenTCP(config['port'], server.Site(t))
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
 class TimedPlugin:
     def __init__(self, server):
         self.server = server
@@ -204,6 +221,7 @@ PLUGINS = (
     MotdPlugin,
     SnapshotPlugin,
     OverviewerPlugin,
+    RPCPlugin,
 #    KickPlugin
 )
 
@@ -336,7 +354,7 @@ class MinecraftServer(object):
     def list(self):
         self.process.stdin.write("list \n")
         line = self.process.stderr.readline().strip()
-        return line[(line.index('players:') + 9):]
+        return line[(line.index('players:') + 9):].split(' ')
 
     def shutdown(self):
         self.plugins = stop_plugins(self.plugins)

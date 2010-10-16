@@ -3,6 +3,7 @@ Plugins:
     - MotdPlugin
     - SnapshotPlugin
     - OverviewerPlugin
+    - RPCPlugin
 BackupPlugin:
     interval: 1800
 MotdPlugin:
@@ -17,3 +18,5 @@ OverviewerPlugin:
     interval: 3600
     destdir: gmaps
     cachedir: gcache
+RPCPlugin:
+    port: 8000
