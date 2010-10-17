@@ -207,8 +207,6 @@ class OverviewerPlugin(TimedPlugin):
 #            print "Kicking %s" % player
 #            self.server.kick(player)
 # ---------------------------- PLUGINS --------------------------------------- #
-RESTART_TIME = 3
-COMMAND = ("java", "-Xmx1024M", "-Xms1024M", "-jar", "minecraft_server.jar", "nogui")
 COMMANDS = {
     "help": HelpCommand,
     #"quote": QuoteCommand,
@@ -260,10 +258,8 @@ class Config(object):
             setattr(self, key, value)
 
 class MinecraftServer(object):
-    def __init__(self, process):
-        self.process = process
+    def __init__(self):
         self.config = Config()
-        self.plugins = start_plugins(self)
         self.backuplock = threading.Lock()
 
     def get_config(self, crass):
@@ -364,8 +360,7 @@ class MinecraftServer(object):
         self.process.terminate()
 
     def start(self):
-        time.sleep(RESTART_TIME)
-        self.process = subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+        self.process = subprocess.Popen(self.config.config['Command'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
         self.plugins = start_plugins(self)
 
     def is_op(self, player):
@@ -464,7 +459,8 @@ def read_server(fd, description, server):
 def basic_startup():
     logging.basicConfig(filename='wrapper.log', level=logging.DEBUG)
     logging.getLogger().addHandler(logging.StreamHandler())
-    server = MinecraftServer(subprocess.Popen(COMMAND, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE))
+    server = MinecraftServer()
+    server.start()
     logging.info("Ops are: " + str(list(server.operators)))
     files = [f for f in os.listdir(os.getcwd()) if f.startswith('server.log')]
     for f in files:
