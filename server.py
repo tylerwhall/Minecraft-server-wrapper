@@ -71,13 +71,6 @@ class BackupCommand(object):
             return
         server.backup()
 
-class ListCommand(object):
-    def __init__(self, server, user):
-#    	server.tell(user, "Ok. I will try")
-        users = server.list()
-        users = 'Currently In-Game: ' + ' '.join(users)
-        server.tell(user, users)
-
 # ---------------------------- COMMANDS -------------------------------------- #
 # ---------------------------- PLUGINS --------------------------------------- #
 class RPCPlugin:
@@ -88,8 +81,8 @@ class RPCPlugin:
         from twisted.web import xmlrpc, server
         class Test(xmlrpc.XMLRPC):
             server = mcserver
-            def xmlrpc_list(self):
-                return self.server.list()
+            def xmlrpc_nop(self):
+                return None
         t = Test()
         config = mcserver.get_config(self)
         reactor.listenTCP(config['port'], server.Site(t))
@@ -212,7 +205,6 @@ COMMANDS = {
     #"quote": QuoteCommand,
     "backup": BackupCommand,
     #"restore": RestoreCommand,
-    "list": ListCommand,
 }
 PLUGINS = (
     BackupPlugin,
@@ -346,11 +338,6 @@ class MinecraftServer(object):
 
     def stdin(self, input):
         self.process.stdin.write(input)
-
-    def list(self):
-        self.process.stdin.write("list \n")
-        line = self.process.stderr.readline().strip()
-        return line[(line.index('players:') + 9):].split(' ')
 
     def shutdown(self):
         self.plugins = stop_plugins(self.plugins)
